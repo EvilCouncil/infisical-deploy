@@ -1,0 +1,118 @@
+version: "3.8"
+
+services:
+  infisical-api:
+    image: ghcr.io/infisical/infisical:latest-tag
+    restart: always
+    command: yarn dev:server
+    environment:
+      IS_POSTGRES: "true"
+      IS_REDIS: "true"
+      IS_SMTP_ENABLED: "${IS_SMTP_ENABLED:-false}"
+      IS_SMTP_TLS: "${IS_SMTP_TLS:-false}"
+      IS_SECURE_COOKIES: "true"
+      HOSTNAME: "0.0.0.0"
+      PORT: "8080"
+      NODE_ENV: "production"
+      REDIS_URL: "redis://redis:6379"
+      POSTGRES_HOST: "postgresql"
+      POSTGRES_PORT: "5432"
+      POSTGRES_USER: "infisical"
+      POSTGRES_PASSWORD: "${INFISICAL_POSTGRES_PASSWORD}"
+      POSTGRES_DB: "infisical"
+      POSTGRES_SSL: "false"
+      JWT_SECRET: "${INFISICAL_JWT_SECRET}"
+      API_BASE_URL: "http://infisical-api:8080"
+      LOGIN_ORIGIN: "${INFISICAL_LOGIN_ORIGIN:-http://localhost:8080}"
+      FRONTEND_WEB_URL: "${INFISICAL_FRONTEND_WEB_URL:-http://localhost:8080}"
+      SMTP_HOST: "${IS_SMTP_HOST:-}"
+      SMTP_PORT: "${IS_SMTP_PORT:-}"
+      SMTP_USERNAME: "${IS_SMTP_USERNAME:-}"
+      SMTP_PASSWORD: "${IS_SMTP_PASSWORD:-}"
+      SMTP_FROM_NAME: "${IS_SMTP_FROM_NAME:-Infisical}"
+      SMTP_FROM_ADDRESS: "${IS_SMTP_FROM_ADDRESS:-}"
+    volumes:
+      - uploads:/app/storage/uploads
+    depends_on:
+      - postgresql
+      - redis
+    networks:
+      - proxy
+
+  infisical-worker:
+    image: ghcr.io/infisical/infisical:latest-tag
+    restart: always
+    command: yarn dev:worker
+    environment:
+      IS_POSTGRES: "true"
+      IS_REDIS: "true"
+      IS_SMTP_ENABLED: "${IS_SMTP_ENABLED:-false}"
+      IS_SMTP_TLS: "${IS_SMTP_TLS:-false}"
+      REDIS_URL: "redis://redis:6379"
+      POSTGRES_HOST: "postgresql"
+      POSTGRES_PORT: "5432"
+      POSTGRES_USER: "infisical"
+      POSTGRES_PASSWORD: "${INFISICAL_POSTGRES_PASSWORD}"
+      POSTGRES_DB: "infisical"
+      POSTGRES_SSL: "false"
+      JWT_SECRET: "${INFISICAL_JWT_SECRET}"
+      SMTP_HOST: "${IS_SMTP_HOST:-}"
+      SMTP_PORT: "${IS_SMTP_PORT:-}"
+      SMTP_USERNAME: "${IS_SMTP_USERNAME:-}"
+      SMTP_PASSWORD: "${IS_SMTP_PASSWORD:-}"
+      SMTP_FROM_NAME: "${IS_SMTP_FROM_NAME:-Infisical}"
+      SMTP_FROM_ADDRESS: "${IS_SMTP_FROM_ADDRESS:-}"
+    depends_on:
+      - postgresql
+      - redis
+    networks:
+      - proxy
+
+  infisical-nginx:
+    image: ghcr.io/infisical/infisical-nginx:latest-tag
+    restart: always
+    ports:
+      - "80:80"
+    environment:
+      API_URL: "http://infisical-api:8080"
+      PORT: "80"
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.infisical.entrypoints=websecure"
+      - "traefik.http.routers.infisical.rule=Host(`secrets.hackfortress.net`)"
+      - "traefik.http.routers.infisical.tls.certresolver=myresolver"
+      - "traefik.http.services.infisical.loadbalancer.server.port=80"
+    depends_on:
+      - infisical-api
+    networks:
+      - proxy
+
+  postgresql:
+    image: postgres:15
+    restart: always
+    environment:
+      POSTGRES_USER: "infisical"
+      POSTGRES_PASSWORD: "${INFISICAL_POSTGRES_PASSWORD}"
+      POSTGRES_DB: "infisical"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    networks:
+      - proxy
+
+  redis:
+    image: redis:7
+    restart: always
+    command: redis-server --appendonly yes
+    volumes:
+      - redisdata:/data
+    networks:
+      - proxy
+
+volumes:
+  pgdata:
+  redisdata:
+  uploads:
+
+networks:
+  proxy:
+    external: true
