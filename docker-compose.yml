@@ -4,7 +4,6 @@ services:
   infisical-backend:
     image: infisical/infisical:latest
     restart: always
-    command: yarn dev:server
     environment:
       IS_POSTGRES: "true"
       IS_REDIS: "true"
